@@ -29,19 +29,19 @@ export const reportSchema = z.object({
     description: z
         .string()
         .trim()
-        .min(5, 'Description must be at least 5 characters long')
+        .min(1, 'Description is required')
         .max(2000, 'Description cannot exceed 2000 characters'),
     location: z
         .string()
         .trim()
-        .min(2, 'Location is required')
+        .min(1, 'Location is required')
         .max(255, 'Location name is too long'),
     priority: reportPrioritySchema,
     status: reportStatusSchema,
     reportedAt: z.string().datetime('Invalid reported date format'),
     createdAt: z.string().datetime('Invalid creation date format'),
     updatedAt: z.string().datetime('Invalid update date format'),
-    syncStatus: syncStatusSchema,
+    syncStatus: syncStatusSchema.optional().default('PENDING'),
     syncError: z.string().nullable().optional(),
     version: z.number().int().nonnegative(),
 });

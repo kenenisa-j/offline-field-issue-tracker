@@ -53,6 +53,7 @@ export async function syncSingleReport(report: LocalReport): Promise<boolean> {
                 reportedAt: report.reportedAt,
                 createdAt: report.createdAt,
                 updatedAt: report.updatedAt,
+                syncStatus: report.syncStatus || 'PENDING',
                 version: report.version,
             }),
         });

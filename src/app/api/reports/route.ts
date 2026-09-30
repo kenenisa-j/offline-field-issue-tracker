@@ -20,8 +20,9 @@ export async function POST(request: NextRequest) {
         // Validate request payload against Zod schema
         const validationResult = reportSchema.safeParse(body);
         if (!validationResult.success) {
+            const firstError = validationResult.error.issues?.[0]?.message || 'Validation failed';
             return NextResponse.json(
-                { success: false, errors: validationResult.error.format() },
+                { success: false, error: firstError, errors: validationResult.error.format() },
                 { status: 400 }
             );
         }

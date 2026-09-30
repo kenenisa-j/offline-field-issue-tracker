@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createLocalReport } from '@/services/localReportService';
+import { syncSingleReport } from '@/services/syncService';
 import { ReportCategory, ReportPriority } from '@/types/report';
 
 export function CreateReportForm({ onSuccessAction }: { onSuccessAction?: () => void }) {
@@ -17,13 +18,20 @@ export function CreateReportForm({ onSuccessAction }: { onSuccessAction?: () => 
 
         setIsSubmitting(true);
         try {
-            await createLocalReport({
+            const savedReport = await createLocalReport({
                 category,
                 description,
                 location,
                 priority,
                 status: 'DRAFT',
             });
+
+            // If online, immediately sync to server right away
+            if (typeof navigator !== 'undefined' && navigator.onLine) {
+                syncSingleReport(savedReport).catch((err) => {
+                    console.error('Immediate sync failed:', err);
+                });
+            }
 
             // Reset form
             setDescription('');
