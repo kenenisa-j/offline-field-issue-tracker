@@ -1,12 +1,16 @@
 'use client';
 
+import { useState } from 'react';
 import { useLocalReports } from '@/hooks/useLocalReports';
 import { syncSingleReport } from '@/services/syncService';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { LocalReport } from '@/db/dexie';
+import { ReportDetailModal } from './ReportDetailModal';
 
 export function ReportList() {
     const { reports, isLoading } = useLocalReports();
     const isOnline = useNetworkStatus();
+    const [selectedReport, setSelectedReport] = useState<LocalReport | null>(null);
 
     if (isLoading) {
         return <div className="text-sm text-gray-500 py-4">Loading reports...</div>;
@@ -59,6 +63,12 @@ export function ReportList() {
                         </div>
 
                         <div className="flex items-center gap-3 self-end sm:self-center">
+                            <button
+                                onClick={() => setSelectedReport(report)}
+                                className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors"
+                            >
+                                View History
+                            </button>
                             <div className="text-xs bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
                                 {getSyncBadge(report.syncStatus)}
                             </div>
@@ -66,7 +76,7 @@ export function ReportList() {
                                 <button
                                     onClick={() => isOnline && syncSingleReport(report)}
                                     disabled={!isOnline}
-                                    className="px-2.5 py-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg shadow-sm"
+                                    className="px-2.5 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg shadow-sm"
                                 >
                                     Retry
                                 </button>
@@ -75,6 +85,13 @@ export function ReportList() {
                     </div>
                 ))}
             </div>
+
+            {selectedReport && (
+                <ReportDetailModal
+                    report={selectedReport}
+                    onCloseAction={() => setSelectedReport(null)}
+                />
+            )}
         </div>
     );
 }
