@@ -50,7 +50,7 @@ export function CoordinatorReportList() {
             const response = await fetch(`/api/reports/${reportId}/status`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus }),
+                body: JSON.stringify({ nextStatus: newStatus, changedBy: 'COORDINATOR' }),
             });
             const result = await response.json();
 
@@ -120,6 +120,17 @@ export function CoordinatorReportList() {
                         {/* State Machine Transition Actions */}
                         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
                             <span className="text-xs font-semibold text-gray-500 uppercase">Actions:</span>
+
+                            {report.status === 'DRAFT' && (
+                                <button
+                                    onClick={() => handleStatusChange(report.id, 'SUBMITTED')}
+                                    disabled={processingId === report.id}
+                                    className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-medium disabled:opacity-50"
+                                >
+                                    Submit for Review
+                                </button>
+                            )}
+
                             {report.status === 'SUBMITTED' && (
                                 <>
                                     <button

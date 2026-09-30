@@ -14,10 +14,11 @@ const updateStatusSchema = z.object({
 
 export async function PATCH(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const reportId = parseInt(params.id, 10);
+        const { id } = await params;
+        const reportId = parseInt(id, 10);
         if (isNaN(reportId)) {
             return NextResponse.json({ success: false, error: 'Invalid report ID' }, { status: 400 });
         }

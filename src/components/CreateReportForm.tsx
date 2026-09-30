@@ -23,7 +23,7 @@ export function CreateReportForm({ onSuccessAction }: { onSuccessAction?: () => 
                 description,
                 location,
                 priority,
-                status: 'DRAFT',
+                status: 'SUBMITTED',
             });
 
             // If online, immediately sync to server right away
