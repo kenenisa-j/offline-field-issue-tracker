@@ -41,6 +41,53 @@ The application:
 7. **Supports Two Simulated Roles**  
    Field Workers create and submit reports, while Coordinators review reports and manage their workflow.
 
+
+
+
+
+
+   ## 🚀 How to Run Locally
+
+### Prerequisites
+
+- Node.js 20+
+- npm
+- PostgreSQL
+
+### Setup
+
+```bash
+git clone https://github.com/kenenisa-j/offline-field-issue-tracker.git
+cd offline-field-issue-tracker
+npm install
+```
+
+Create a `.env.local` file in the project root:
+
+```env
+DATABASE_URL=your_postgresql_connection_string
+```
+
+Set up the database:
+
+```bash
+npm run db:push
+```
+
+Start the application:
+
+```bash
+npm run dev
+```
+
+Open `http://localhost:3000` in your browser.
+
+### Run Tests
+
+```bash
+npm test
+```
+
    ## 🏗️ Architecture
 
 Field Issue Tracker uses an offline-capable client architecture. Report data is first persisted locally, allowing field workers to create reports without network connectivity. When connectivity is available, pending reports are synchronized with the backend API and stored in PostgreSQL.
@@ -263,22 +310,28 @@ Install dependencies:
 
 ```bash
 npm install
+
 ## 🤖 AI & Development Tool Disclosure
 
-AI tools were used as development assistants during this project.
+AI was used as a supporting development tool during this project.
 
-### AI was used for:
+### AI-Assisted Areas
 
-- Discussing and refining the application architecture and offline synchronization strategy.
-- Reviewing implementation decisions around IndexedDB, synchronization, retries, and duplicate prevention.
-- Helping reason through workflow states and valid/invalid status transitions.
-- Assisting with debugging and identifying potential edge cases.
-- Helping design and review automated test scenarios.
-- Reviewing and improving README documentation and technical explanations.
+AI assistance was mainly used for:
 
-### Human Responsibility
+- **Code Writing:** Assisting with portions of the implementation and providing code suggestions. The project also contains code written directly by me.
+- **Code Review & Debugging:** Reviewing implementation, identifying potential issues, and discussing possible fixes.
+- **Documentation:** Helping structure, review, and refine the README and technical documentation.
 
-All generated suggestions and code were reviewed, adapted, and tested during development. The final implementation, technical decisions, testing, and project documentation remain my responsibility.
+### Developer-Led Areas
+
+The following areas were primarily designed and decided by me:
+
+- **Architecture:** I designed the overall application architecture and technology choices.
+- **Design Decisions:** I made the main decisions around offline persistence, synchronization, workflow states, duplicate prevention, and failure handling.
+- **Testing Strategy:** I decided which core behaviors and edge cases needed to be tested.
+
+AI-generated suggestions and code were reviewed, adapted, and tested during development. I also wrote and modified code independently throughout the project. I remained responsible for the implementation, technical decisions, testing, and final result.
 
 AI was used as an engineering assistant rather than as a substitute for understanding or verification.
 
