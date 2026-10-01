@@ -1,45 +1,3 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
-
-## Getting Started
-
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-
-
-
-
-
 # Field Issue Tracker 🛠️🛰️
 
 An offline-capable issue reporting and tracking application for field workers and coordinators operating in environments with unreliable connectivity.
@@ -83,7 +41,246 @@ The application:
 7. **Supports Two Simulated Roles**  
    Field Workers create and submit reports, while Coordinators review reports and manage their workflow.
 
+   ## 🏗️ Architecture
 
+Field Issue Tracker uses an offline-capable client architecture. Report data is first persisted locally, allowing field workers to create reports without network connectivity. When connectivity is available, pending reports are synchronized with the backend API and stored in PostgreSQL.
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                     Next.js Application                     │
+│                                                             │
+│  ┌─────────────────┐          ┌─────────────────────────┐  │
+│  │    Report UI    │          │    Synchronization      │  │
+│  │                 │          │        Engine           │  │
+│  │ • Create        │          │                         │  │
+│  │ • View          │          │ • Pending queue         │  │
+│  │ • Details       │          │ • Retry failed sync     │  │
+│  │ • Coordinator   │          │ • Sync state tracking   │  │
+│  └────────┬────────┘          └────────────┬────────────┘  │
+│           │                                │               │
+│           └───────────────┬────────────────┘               │
+│                           ▼                                │
+│                 ┌─────────────────────┐                    │
+│                 │  IndexedDB / Dexie   │                    │
+│                 │                     │                    │
+│                 │ Reports + Sync State │                    │
+│                 │ + Local History      │                    │
+│                 └──────────┬──────────┘                    │
+└────────────────────────────┼────────────────────────────────┘
+                             │
+                    Internet Available
+                             │
+                             ▼
+                  ┌─────────────────────┐
+                  │     Backend API     │
+                  │ Next.js Route APIs  │
+                  │                     │
+                  │ • Validation        │
+                  │ • Workflow Rules    │
+                  │ • Idempotency       │
+                  └──────────┬──────────┘
+                             │
+                             ▼
+                  ┌─────────────────────┐
+                  │     PostgreSQL      │
+                  │                     │
+                  │ • Reports           │
+                  │ • Report History    │
+                  └─────────────────────┘
+
+### Offline Data Flow
+
+```text
+[ IndexedDB / Dexie.js ]
+          │
+          │ Local write
+          │ + local audit event
+          ▼
+[ Local Report ]
+[ Sync Status: PENDING ]
+          │
+          │ Connectivity available
+          ▼
+[ Sync Engine / Queue Manager ]
+          │
+          │ Idempotent HTTP request
+          │ using unique clientId
+          ▼
+[ Backend API ]
+          │
+          │ Validate + enforce
+          │ workflow + idempotency
+          ▼
+[ PostgreSQL / Server Database ]
+          │
+          ▼
+[ Synchronization Result ]
+     ┌────┴─────┐
+     │          │
+  Success     Failure
+     │          │
+     ▼          ▼
+  SYNCED      FAILED
+                │
+                ▼
+              Retry
+
+
+## 🔁 Idempotency & Duplicate Prevention
+
+Offline synchronization must account for an important network failure scenario: the server may successfully process a report, but the client may never receive the response because the connection is interrupted.
+
+### The Retry Problem
+
+For example:
+
+```text
+Client
+  │
+  │ POST report (clientId = abc-123)
+  ▼
+Server
+  │
+  │ Saves report successfully
+  ▼
+Database
+  │
+  X  Response lost because connection fails
+  │
+  ▼
+Client assumes synchronization failed
+  │
+  ▼
+Retry same report
+
+## 🧩 Assumptions & Design Decisions
+
+The assignment intentionally leaves several implementation details unspecified. The following assumptions define the scope and behavior of the application.
+
+### Editing
+
+Reports can be edited while they are still local drafts.
+
+Once a report has been submitted, the field worker cannot freely modify the synchronized report. This prevents local changes from conflicting with coordinator workflow changes.
+
+For this exercise, editing already-synchronized reports is outside the primary scope.
+
+### Conflicts
+
+The application is designed primarily around offline report creation rather than concurrent editing of the same report from multiple devices.
+
+Once a report has been synchronized, the server becomes the authoritative source for its workflow state.
+
+Complex multi-device conflict resolution is outside the scope of this six-hour exercise. Instead, editing is restricted after submission to reduce the possibility of conflicting changes.
+
+### Reopening Reports
+
+Resolved and rejected reports cannot be reopened by field workers.
+
+The implemented workflow does not include a reopening transition:
+
+```text
+Resolved → Reopened
+Rejected → Reopened
+## ⚠️ Known Limitations
+
+The application is intentionally scoped to the core requirements of the exercise. The following capabilities are not included in the current implementation:
+
+- **No Authentication:** Field Worker and Coordinator roles are simulated. There is no user account, login, or production authentication system.
+
+- **No Background Service Worker Sync:** Synchronization is handled by the application while the client is active. A production version could use Service Workers and the Background Sync API to improve synchronization when the application is not actively open.
+
+- **No File Attachments:** Reports currently contain structured data such as category, description, location, priority, and timestamps. Offline photos, audio recordings, documents, and other binary attachments are not supported.
+
+- **No Advanced Conflict Resolution:** The system focuses on offline report creation and synchronization rather than concurrent editing of the same report across multiple devices. More advanced conflict-resolution strategies could be added in a future version.
+
+- **No Native Mobile Application:** The current implementation is a web application designed to work across desktop and mobile browsers. A dedicated Android or iOS application is outside the scope of this exercise.
+
+- **Limited Reopening Workflow:** Resolved and rejected reports cannot be reopened by field workers. Supporting controlled reopening would require additional workflow rules and permissions.
+
+- **Simulated Role Permissions:** Because authentication is not implemented, role separation is a workflow/UI concern rather than a security boundary.
+
+## 🧪 Manual QA Checklist
+
+The following scenarios can be used to verify the application's behavior in a real browser environment.
+
+### Offline Report Creation
+
+- [ ] Start the application while online.
+- [ ] Switch the browser's network state to **Offline** using DevTools.
+- [ ] Create and submit a new field issue.
+- [ ] Verify the report is saved locally.
+- [ ] Verify the report shows a `PENDING` sync state.
+- [ ] Refresh the page while still offline.
+- [ ] Verify the report is still available.
+
+### Synchronization
+
+- [ ] Restore the browser's network state to **Online**.
+- [ ] Trigger synchronization.
+- [ ] Verify the pending report is sent to the backend.
+- [ ] Verify the report changes from `PENDING` to `SYNCED`.
+- [ ] Verify the report exists in the server database.
+
+### Failed Synchronization and Retry
+
+- [ ] Create or use a pending report.
+- [ ] Make the synchronization request fail.
+- [ ] Verify the report changes to `FAILED`.
+- [ ] Verify the local report is not deleted.
+- [ ] Restore the backend/network.
+- [ ] Retry synchronization.
+- [ ] Verify the report synchronizes successfully.
+
+### Duplicate Prevention
+
+- [ ] Attempt to synchronize the same report more than once.
+- [ ] Verify the same `clientId` is used for each attempt.
+- [ ] Verify repeated synchronization does not create duplicate server records.
+
+### Workflow Validation
+
+- [ ] Verify `Draft → Submitted` works.
+- [ ] Verify `Submitted → Assigned` works.
+- [ ] Verify `Submitted → Rejected` works.
+- [ ] Verify `Assigned → In Progress` works.
+- [ ] Verify `In Progress → Resolved` works.
+- [ ] Attempt an invalid transition such as `Draft → Resolved`.
+- [ ] Verify the invalid transition is rejected.
+
+### History
+
+- [ ] Create a report and verify the creation event is recorded.
+- [ ] Synchronize a report and verify the synchronization event is recorded.
+- [ ] Cause a synchronization failure and verify the failure is recorded.
+- [ ] Change the report status and verify the status change is recorded.
+
+## 🧪 Automated Testing
+
+### Running the Tests
+
+Install dependencies:
+
+```bash
+npm install
+## 🤖 AI & Development Tool Disclosure
+
+AI tools were used as development assistants during this project.
+
+### AI was used for:
+
+- Discussing and refining the application architecture and offline synchronization strategy.
+- Reviewing implementation decisions around IndexedDB, synchronization, retries, and duplicate prevention.
+- Helping reason through workflow states and valid/invalid status transitions.
+- Assisting with debugging and identifying potential edge cases.
+- Helping design and review automated test scenarios.
+- Reviewing and improving README documentation and technical explanations.
+
+### Human Responsibility
+
+All generated suggestions and code were reviewed, adapted, and tested during development. The final implementation, technical decisions, testing, and project documentation remain my responsibility.
+
+AI was used as an engineering assistant rather than as a substitute for understanding or verification.
 
 
 
