@@ -9,7 +9,14 @@ export async function GET(request: NextRequest) {
         const allReports = await db.select().from(reports);
         return NextResponse.json({ success: true, data: allReports }, { status: 200 });
     } catch (error: any) {
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        console.error('Database connection error in GET /api/reports:', error);
+        return NextResponse.json(
+            {
+                success: false,
+                error: 'Could not connect to central database. Please verify your internet connection or server availability.',
+            },
+            { status: 503 }
+        );
     }
 }
 
@@ -71,6 +78,13 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true, data: insertedReport }, { status: 201 });
     } catch (error: any) {
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        console.error('Database connection error in POST /api/reports:', error);
+        return NextResponse.json(
+            {
+                success: false,
+                error: 'Could not synchronize report to central database. Please verify your network connection.',
+            },
+            { status: 500 }
+        );
     }
 }

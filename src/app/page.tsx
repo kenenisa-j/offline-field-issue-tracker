@@ -66,7 +66,9 @@ export default function Home() {
                         </div>
                     ) : (
                         <div className="max-w-4xl mx-auto">
-                            <CoordinatorReportList />
+                            <CoordinatorReportList
+                                onSwitchToFieldWorkerAction={() => handleRoleChange('FIELD_WORKER')}
+                            />
                         </div>
                     )}
                 </main>

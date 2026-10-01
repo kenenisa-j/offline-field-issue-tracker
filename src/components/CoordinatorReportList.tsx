@@ -1,7 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { pullServerUpdates } from '@/services/syncService';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { localDb, LocalReport } from '@/db/dexie';
+import { WifiOff, AlertTriangle, RefreshCw, ArrowRight, CloudOff, Info } from 'lucide-react';
 
 export interface ServerReport {
     id: number;
@@ -16,14 +19,35 @@ export interface ServerReport {
     updatedAt: string;
 }
 
-export function CoordinatorReportList() {
+interface CoordinatorReportListProps {
+    onSwitchToFieldWorkerAction?: () => void;
+}
+
+export function CoordinatorReportList({ onSwitchToFieldWorkerAction }: CoordinatorReportListProps) {
+    const isOnline = useNetworkStatus();
     const [reports, setReports] = useState<ServerReport[]>([]);
+    const [cachedReports, setCachedReports] = useState<LocalReport[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [actionError, setActionError] = useState<{ id: number; message: string } | null>(null);
     const [processingId, setProcessingId] = useState<number | null>(null);
 
-    const fetchServerReports = async () => {
+    const loadLocalCache = useCallback(async () => {
+        try {
+            const local = await localDb.reports.toArray();
+            setCachedReports(local);
+        } catch (e) {
+            console.error('Failed to load cached local reports:', e);
+        }
+    }, []);
+
+    const fetchServerReports = useCallback(async () => {
+        if (!navigator.onLine) {
+            await loadLocalCache();
+            setIsLoading(false);
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
         try {
@@ -34,17 +58,30 @@ export function CoordinatorReportList() {
             }
             setReports(result.data || []);
         } catch (err: any) {
-            setError(err.message || 'Error connecting to server');
+            console.error('fetchServerReports error:', err);
+            // Provide a clean user-facing error message without raw SQL query dumps
+            setError('Could not connect to central reporting server. Please check your network connection.');
+            await loadLocalCache();
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [loadLocalCache]);
 
     useEffect(() => {
-        fetchServerReports();
-    }, []);
+        if (isOnline) {
+            fetchServerReports();
+        } else {
+            loadLocalCache();
+            setIsLoading(false);
+        }
+    }, [isOnline, fetchServerReports, loadLocalCache]);
 
     const handleStatusChange = async (reportId: number, newStatus: string) => {
+        if (!isOnline) {
+            setActionError({ id: reportId, message: 'Cannot modify report status while offline' });
+            return;
+        }
+
         setProcessingId(reportId);
         setActionError(null);
         try {
@@ -72,17 +109,136 @@ export function CoordinatorReportList() {
     };
 
     if (isLoading) {
-        return <div className="text-sm text-gray-500 py-6">Loading coordinator queue from server...</div>;
+        return (
+            <div className="flex items-center justify-center gap-3 py-12 text-sm text-gray-500">
+                <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+                <span>Loading coordinator queue from server...</span>
+            </div>
+        );
     }
 
+    // OFFLINE MODE: When completely offline
+    if (!isOnline) {
+        return (
+            <div className="space-y-4">
+                {/* Offline Header Alert Banner */}
+                <div className="bg-amber-50/90 border border-amber-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0">
+                            <WifiOff className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-sm font-semibold text-amber-950">Coordinator Console is Offline</h3>
+                                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
+                                    Read-Only
+                                </span>
+                            </div>
+                            <p className="text-xs text-amber-800 mt-0.5">
+                                Reviewing and transitioning report statuses requires an active network connection to the central server.
+                            </p>
+                        </div>
+                    </div>
+                    {onSwitchToFieldWorkerAction && (
+                        <button
+                            onClick={onSwitchToFieldWorkerAction}
+                            className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors"
+                        >
+                            <span>Work in Field Mode</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+                </div>
+
+                {/* If cached local reports are available, show them read-only */}
+                {cachedReports.length > 0 ? (
+                    <div className="space-y-3">
+                        <div className="flex items-center justify-between px-1">
+                            <p className="text-xs font-medium text-gray-500">
+                                Displaying {cachedReports.length} locally cached report(s)
+                            </p>
+                            <span className="text-[11px] text-amber-700 font-medium flex items-center gap-1">
+                                <Info className="w-3.5 h-3.5" /> Status actions paused while offline
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 opacity-90">
+                            {cachedReports.map((report) => (
+                                <div key={report.clientId} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-semibold text-gray-900">{report.category}</span>
+                                            <span className="px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">{report.priority}</span>
+                                            <span className="px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-700">{report.status}</span>
+                                        </div>
+                                        <span className="text-xs text-gray-400 font-mono">ID: #{report.id ?? '—'}</span>
+                                    </div>
+                                    <p className="text-sm text-gray-700">{report.description}</p>
+                                    <p className="text-xs text-gray-500">Location: {report.location} • Reported: {new Date(report.reportedAt).toLocaleString()}</p>
+                                    <div className="flex items-center gap-2 pt-2 border-t border-gray-100 text-xs text-gray-400">
+                                        <span className="font-semibold uppercase text-gray-400">Actions:</span>
+                                        <span className="italic">Disabled offline • Live server connection required</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm text-center space-y-4 max-w-lg mx-auto">
+                        <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto border border-amber-200 shadow-inner">
+                            <CloudOff className="w-7 h-7" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <h3 className="text-base font-bold text-gray-950">No Cached Reports Available</h3>
+                            <p className="text-xs text-gray-600 leading-relaxed">
+                                Connect to the internet to load the central review queue, or switch to Field Worker mode to draft and capture issues offline.
+                            </p>
+                        </div>
+                        {onSwitchToFieldWorkerAction && (
+                            <div className="pt-2">
+                                <button
+                                    onClick={onSwitchToFieldWorkerAction}
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
+                                >
+                                    Switch to Field Worker Mode
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // SERVER ERROR STATE: Online, but server connection failed
     if (error) {
         return (
-            <div className="bg-red-50 border border-red-200 p-4 rounded-xl text-red-700 text-sm space-y-2">
-                <p className="font-semibold">⚠ Could not load coordinator view</p>
-                <p className="text-xs">{error}</p>
-                <button onClick={fetchServerReports} className="px-3 py-1 bg-red-600 text-white rounded text-xs font-medium">
-                    Retry
-                </button>
+            <div className="bg-white border border-red-200 rounded-2xl p-6 shadow-sm text-center space-y-4 max-w-lg mx-auto">
+                <div className="w-12 h-12 rounded-xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+                    <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-gray-950">Unable to Connect to Coordinator Server</h3>
+                    <p className="text-xs text-gray-600 leading-relaxed">
+                        {error}
+                    </p>
+                </div>
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+                    <button
+                        onClick={fetchServerReports}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors"
+                    >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Retry Connection</span>
+                    </button>
+                    {onSwitchToFieldWorkerAction && (
+                        <button
+                            onClick={onSwitchToFieldWorkerAction}
+                            className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-medium transition-colors"
+                        >
+                            Work in Field Mode
+                        </button>
+                    )}
+                </div>
             </div>
         );
     }
@@ -90,103 +246,115 @@ export function CoordinatorReportList() {
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-950">Coordinator Review Queue ({reports.length})</h2>
+                <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-semibold text-gray-950">Coordinator Review Queue ({reports.length})</h2>
+                    <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        Live Database
+                    </span>
+                </div>
                 <button
                     onClick={fetchServerReports}
-                    className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors"
                 >
-                    Refresh Queue
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Refresh Queue</span>
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-3">
-                {reports.map((report) => (
-                    <div key={report.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <span className="font-semibold text-gray-900">{report.category}</span>
-                                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">{report.priority}</span>
-                                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">{report.status}</span>
+            {reports.length === 0 ? (
+                <div className="bg-white p-8 rounded-xl border border-gray-200 text-center text-gray-500 text-sm">
+                    No reports currently waiting in the coordinator queue.
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 gap-3">
+                    {reports.map((report) => (
+                        <div key={report.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-gray-900">{report.category}</span>
+                                    <span className="px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-700">{report.priority}</span>
+                                    <span className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">{report.status}</span>
+                                </div>
+                                <span className="text-xs text-gray-400 font-mono">ID: #{report.id}</span>
                             </div>
-                            <span className="text-xs text-gray-400 font-mono">ID: #{report.id}</span>
-                        </div>
 
-                        <p className="text-sm text-gray-700">{report.description}</p>
-                        <p className="text-xs text-gray-500">Location: {report.location} • Reported: {new Date(report.reportedAt).toLocaleString()}</p>
+                            <p className="text-sm text-gray-700">{report.description}</p>
+                            <p className="text-xs text-gray-500">Location: {report.location} • Reported: {new Date(report.reportedAt).toLocaleString()}</p>
 
-                        {actionError && actionError.id === report.id && (
-                            <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center justify-between">
-                                <span>⚠ State Error: {actionError.message}</span>
-                                <button onClick={() => setActionError(null)} className="font-bold">✕</button>
+                            {actionError && actionError.id === report.id && (
+                                <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 flex items-center justify-between">
+                                    <span>⚠ State Error: {actionError.message}</span>
+                                    <button onClick={() => setActionError(null)} className="font-bold">✕</button>
+                                </div>
+                            )}
+
+                            {/* State Machine Transition Actions */}
+                            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
+                                <span className="text-xs font-semibold text-gray-500 uppercase">Actions:</span>
+
+                                {report.status === 'DRAFT' && (
+                                    <button
+                                        onClick={() => handleStatusChange(report.id, 'SUBMITTED')}
+                                        disabled={processingId === report.id}
+                                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-medium disabled:opacity-50 transition-colors shadow-xs"
+                                    >
+                                        Submit for Review
+                                    </button>
+                                )}
+
+                                {report.status === 'SUBMITTED' && (
+                                    <>
+                                        <button
+                                            onClick={() => handleStatusChange(report.id, 'ASSIGNED')}
+                                            disabled={processingId === report.id}
+                                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium disabled:opacity-50 transition-colors shadow-xs"
+                                        >
+                                            Assign
+                                        </button>
+                                        <button
+                                            onClick={() => handleStatusChange(report.id, 'REJECTED')}
+                                            disabled={processingId === report.id}
+                                            className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-medium disabled:opacity-50 transition-colors shadow-xs"
+                                        >
+                                            Reject
+                                        </button>
+                                    </>
+                                )}
+
+                                {report.status === 'ASSIGNED' && (
+                                    <button
+                                        onClick={() => handleStatusChange(report.id, 'IN_PROGRESS')}
+                                        disabled={processingId === report.id}
+                                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-medium disabled:opacity-50 transition-colors shadow-xs"
+                                    >
+                                        Start Work
+                                    </button>
+                                )}
+
+                                {report.status === 'IN_PROGRESS' && (
+                                    <button
+                                        onClick={() => handleStatusChange(report.id, 'RESOLVED')}
+                                        disabled={processingId === report.id}
+                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-medium disabled:opacity-50 transition-colors shadow-xs"
+                                    >
+                                        Resolve
+                                    </button>
+                                )}
+
+                                {/* Test Invalid Transition */}
+                                <button
+                                    onClick={() => handleStatusChange(report.id, 'ASSIGNED')}
+                                    disabled={processingId === report.id}
+                                    className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-[10px] font-medium transition-colors"
+                                    title="Tests invalid backend state transition"
+                                >
+                                    Test Invalid (→ Assigned)
+                                </button>
                             </div>
-                        )}
-
-                        {/* State Machine Transition Actions */}
-                        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100">
-                            <span className="text-xs font-semibold text-gray-500 uppercase">Actions:</span>
-
-                            {report.status === 'DRAFT' && (
-                                <button
-                                    onClick={() => handleStatusChange(report.id, 'SUBMITTED')}
-                                    disabled={processingId === report.id}
-                                    className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-medium disabled:opacity-50"
-                                >
-                                    Submit for Review
-                                </button>
-                            )}
-
-                            {report.status === 'SUBMITTED' && (
-                                <>
-                                    <button
-                                        onClick={() => handleStatusChange(report.id, 'ASSIGNED')}
-                                        disabled={processingId === report.id}
-                                        className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium disabled:opacity-50"
-                                    >
-                                        Assign
-                                    </button>
-                                    <button
-                                        onClick={() => handleStatusChange(report.id, 'REJECTED')}
-                                        disabled={processingId === report.id}
-                                        className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-medium disabled:opacity-50"
-                                    >
-                                        Reject
-                                    </button>
-                                </>
-                            )}
-
-                            {report.status === 'ASSIGNED' && (
-                                <button
-                                    onClick={() => handleStatusChange(report.id, 'IN_PROGRESS')}
-                                    disabled={processingId === report.id}
-                                    className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-medium disabled:opacity-50"
-                                >
-                                    Start Work
-                                </button>
-                            )}
-
-                            {report.status === 'IN_PROGRESS' && (
-                                <button
-                                    onClick={() => handleStatusChange(report.id, 'RESOLVED')}
-                                    disabled={processingId === report.id}
-                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-medium disabled:opacity-50"
-                                >
-                                    Resolve
-                                </button>
-                            )}
-
-                            {/* Test Invalid Transition (e.g., Resolved -> Assigned) */}
-                            <button
-                                onClick={() => handleStatusChange(report.id, 'ASSIGNED')}
-                                disabled={processingId === report.id}
-                                className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-[10px] font-medium"
-                                title="Tests invalid backend state transition"
-                            >
-                                Test Invalid (→ Assigned)
-                            </button>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

@@ -78,6 +78,10 @@ export async function PATCH(
 
         return NextResponse.json({ success: true, data: updatedReport }, { status: 200 });
     } catch (error: any) {
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        console.error('Database error in PATCH status:', error);
+        return NextResponse.json(
+            { success: false, error: 'Database update failed. Please check network connectivity and try again.' },
+            { status: 500 }
+        );
     }
 }
