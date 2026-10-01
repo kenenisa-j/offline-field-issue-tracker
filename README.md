@@ -173,7 +173,10 @@ Field Issue Tracker uses an offline-capable client architecture. Report data is 
               Retry
 
 
-## 🔁 Idempotency & Duplicate Prevention
+
+
+
+  ## 🔁 Idempotency & Duplicate Prevention
 
 Offline synchronization must account for an important network failure scenario: the server may successfully process a report, but the client may never receive the response because the connection is interrupted.
 
