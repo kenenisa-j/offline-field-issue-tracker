@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#1d4ed8" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+
+  <!-- Clipboard / Shield Shape -->
+  <g filter="url(#shadow)" fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Outer Shield / Board -->
+    <rect x="116" y="110" width="280" height="320" rx="36" fill="#1e3a8a" fill-opacity="0.3" stroke="#ffffff" />
+    
+    <!-- Top Clip -->
+    <path d="M196 110 V90 a20 20 0 0 1 20 -20 h80 a20 20 0 0 1 20 20 v20" fill="#2563eb" stroke="#ffffff" />
+
+    <!-- Checkmark & list items -->
+    <path d="M176 220 l36 36 l72 -72" stroke="#22c55e" stroke-width="28" />
+    <line x1="176" y1="310" x2="336" y2="310" stroke="#93c5fd" />
+    <line x1="176" y1="365" x2="280" y2="365" stroke="#93c5fd" />
+
+    <!-- Offline sync indicator badge (small wifi-off or pulse dot) -->
+    <circle cx="370" cy="140" r="16" fill="#22c55e" stroke="#ffffff" stroke-width="8" />
+  </g>
+</svg>
