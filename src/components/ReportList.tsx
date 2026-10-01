@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocalReports } from '@/hooks/useLocalReports';
-import { syncSingleReport } from '@/services/syncService';
+import { syncSingleReport, pullServerUpdates } from '@/services/syncService';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { LocalReport } from '@/db/dexie';
 import { ReportDetailModal } from './ReportDetailModal';
@@ -11,6 +11,25 @@ export function ReportList() {
     const { reports, isLoading } = useLocalReports();
     const isOnline = useNetworkStatus();
     const [selectedReport, setSelectedReport] = useState<LocalReport | null>(null);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    useEffect(() => {
+        if (isOnline) {
+            pullServerUpdates().catch((err) => {
+                console.error('Initial pull on ReportList mount failed:', err);
+            });
+        }
+    }, [isOnline]);
+
+    const handleRefresh = async () => {
+        if (!isOnline || isRefreshing) return;
+        setIsRefreshing(true);
+        try {
+            await pullServerUpdates();
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
 
     if (isLoading) {
         return <div className="text-sm text-gray-500 py-4">Loading reports...</div>;
@@ -48,7 +67,16 @@ export function ReportList() {
 
     return (
         <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-gray-950">Local Reports</h2>
+            <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-950">Local Reports</h2>
+                <button
+                    onClick={handleRefresh}
+                    disabled={!isOnline || isRefreshing}
+                    className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 text-xs font-medium rounded-lg transition-colors"
+                >
+                    {isRefreshing ? 'Refreshing...' : '↻ Refresh from Server'}
+                </button>
+            </div>
             <div className="grid grid-cols-1 gap-3">
                 {reports.map((report) => (
                     <div key={report.id || report.clientId} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

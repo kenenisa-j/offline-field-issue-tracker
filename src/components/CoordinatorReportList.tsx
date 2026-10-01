@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { pullServerUpdates } from '@/services/syncService';
 
 export interface ServerReport {
     id: number;
@@ -58,8 +59,11 @@ export function CoordinatorReportList() {
                 throw new Error(result.error || 'Invalid state transition');
             }
 
-            // Refresh list
+            // Refresh server list in coordinator UI
             await fetchServerReports();
+
+            // Also immediately sync changes to local IndexedDB
+            await pullServerUpdates();
         } catch (err: any) {
             setActionError({ id: reportId, message: err.message || 'Action failed' });
         } finally {

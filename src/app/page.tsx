@@ -9,9 +9,19 @@ import { CreateReportForm } from '@/components/CreateReportForm';
 import { SyncManager } from '@/components/SyncManager';
 import { ReportList } from '@/components/ReportList';
 import { CoordinatorReportList } from '@/components/CoordinatorReportList';
+import { pullServerUpdates } from '@/services/syncService';
 
 export default function Home() {
     const [role, setRole] = useState<UserRole>('FIELD_WORKER');
+
+    const handleRoleChange = (newRole: UserRole) => {
+        setRole(newRole);
+        if (newRole === 'FIELD_WORKER') {
+            pullServerUpdates().catch((err) => {
+                console.error('Role change pull failed:', err);
+            });
+        }
+    };
 
     return (
         <AutoSyncProvider>
@@ -31,7 +41,7 @@ export default function Home() {
 
                         <div className="flex flex-wrap items-center gap-3">
                             <NetworkIndicator />
-                            <RoleSwitcher currentRole={role} onRoleChange={setRole} />
+                            <RoleSwitcher currentRole={role} onRoleChange={handleRoleChange} />
                         </div>
                     </div>
                 </header>
