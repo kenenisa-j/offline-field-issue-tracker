@@ -46,7 +46,7 @@ The application:
 
 
 
-   ## 🚀 How to Run Locally
+## 🚀 How to Run Locally
 
 ### Prerequisites
 
@@ -88,7 +88,7 @@ Open `http://localhost:3000` in your browser.
 npm test
 ```
 
-   ## 🏗️ Architecture
+## 🏗️ Architecture
 
 Field Issue Tracker uses an offline-capable client architecture. Report data is first persisted locally, allowing field workers to create reports without network connectivity. When connectivity is available, pending reports are synchronized with the backend API and stored in PostgreSQL.
 
@@ -134,6 +134,7 @@ Field Issue Tracker uses an offline-capable client architecture. Report data is 
                   │ • Reports           │
                   │ • Report History    │
                   └─────────────────────┘
+```
 
 ### Offline Data Flow
 
@@ -171,12 +172,9 @@ Field Issue Tracker uses an offline-capable client architecture. Report data is 
                 │
                 ▼
               Retry
+```
 
-
-
-
-
-  ## 🔁 Idempotency & Duplicate Prevention
+## 🔁 Idempotency & Duplicate Prevention
 
 Offline synchronization must account for an important network failure scenario: the server may successfully process a report, but the client may never receive the response because the connection is interrupted.
 
@@ -202,6 +200,7 @@ Client assumes synchronization failed
   │
   ▼
 Retry same report
+```
 
 ## 🧩 Assumptions & Design Decisions
 
@@ -232,6 +231,8 @@ The implemented workflow does not include a reopening transition:
 ```text
 Resolved → Reopened
 Rejected → Reopened
+```
+
 ## ⚠️ Known Limitations
 
 The application is intentionally scoped to the core requirements of the exercise. The following capabilities are not included in the current implementation:
@@ -313,8 +314,7 @@ Install dependencies:
 
 ```bash
 npm install
-
-## 🧪 Automated Testing
+```
 
 ### Unit Tests (Vitest)
 
