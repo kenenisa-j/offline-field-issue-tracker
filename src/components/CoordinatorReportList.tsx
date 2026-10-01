@@ -28,6 +28,7 @@ export function CoordinatorReportList({ onSwitchToFieldWorkerAction }: Coordinat
     const [reports, setReports] = useState<ServerReport[]>([]);
     const [cachedReports, setCachedReports] = useState<LocalReport[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [actionError, setActionError] = useState<{ id: number; message: string } | null>(null);
     const [processingId, setProcessingId] = useState<number | null>(null);
@@ -41,14 +42,19 @@ export function CoordinatorReportList({ onSwitchToFieldWorkerAction }: Coordinat
         }
     }, []);
 
-    const fetchServerReports = useCallback(async () => {
+    const fetchServerReports = useCallback(async (isInitial = false) => {
         if (!navigator.onLine) {
             await loadLocalCache();
             setIsLoading(false);
+            setIsRefreshing(false);
             return;
         }
 
-        setIsLoading(true);
+        if (isInitial) {
+            setIsLoading(true);
+        } else {
+            setIsRefreshing(true);
+        }
         setError(null);
         try {
             const response = await fetch('/api/reports');
@@ -59,17 +65,20 @@ export function CoordinatorReportList({ onSwitchToFieldWorkerAction }: Coordinat
             setReports(result.data || []);
         } catch (err: any) {
             console.error('fetchServerReports error:', err);
-            // Provide a clean user-facing error message without raw SQL query dumps
-            setError('Could not connect to central reporting server. Please check your network connection.');
+            // Provide a clean user-facing error message only on initial failure if no data
+            if (isInitial) {
+                setError('Could not connect to central reporting server. Please check your network connection.');
+            }
             await loadLocalCache();
         } finally {
             setIsLoading(false);
+            setIsRefreshing(false);
         }
     }, [loadLocalCache]);
 
     useEffect(() => {
         if (isOnline) {
-            fetchServerReports();
+            fetchServerReports(true);
         } else {
             loadLocalCache();
             setIsLoading(false);
@@ -96,19 +105,25 @@ export function CoordinatorReportList({ onSwitchToFieldWorkerAction }: Coordinat
                 throw new Error(result.error || 'Invalid state transition');
             }
 
-            // Refresh server list in coordinator UI
-            await fetchServerReports();
+            // Optimistically update the UI immediately without flickering or unmounting the list
+            setReports((prev) =>
+                prev.map((r) => (r.id === reportId ? { ...r, status: newStatus as any } : r))
+            );
+
+            // Silently sync server list in background
+            await fetchServerReports(false);
 
             // Also immediately sync changes to local IndexedDB
             await pullServerUpdates();
         } catch (err: any) {
             setActionError({ id: reportId, message: err.message || 'Action failed' });
+            await fetchServerReports(false);
         } finally {
             setProcessingId(null);
         }
     };
 
-    if (isLoading) {
+    if (isLoading && reports.length === 0) {
         return (
             <div className="flex items-center justify-center gap-3 py-12 text-sm text-gray-500">
                 <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
@@ -253,11 +268,12 @@ export function CoordinatorReportList({ onSwitchToFieldWorkerAction }: Coordinat
                     </span>
                 </div>
                 <button
-                    onClick={fetchServerReports}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors"
+                    onClick={() => fetchServerReports(false)}
+                    disabled={isRefreshing}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition-colors disabled:opacity-60"
                 >
-                    <RefreshCw className="w-3 h-3" />
-                    <span>Refresh Queue</span>
+                    <RefreshCw className={`w-3 h-3 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+                    <span>{isRefreshing ? 'Refreshing...' : 'Refresh Queue'}</span>
                 </button>
             </div>
 
@@ -296,9 +312,10 @@ export function CoordinatorReportList({ onSwitchToFieldWorkerAction }: Coordinat
                                     <button
                                         onClick={() => handleStatusChange(report.id, 'SUBMITTED')}
                                         disabled={processingId === report.id}
-                                        className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-medium disabled:opacity-50 transition-colors shadow-xs"
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-medium disabled:opacity-50 transition-colors shadow-xs"
                                     >
-                                        Submit for Review
+                                        {processingId === report.id && <RefreshCw className="w-3 h-3 animate-spin" />}
+                                        <span>{processingId === report.id ? 'Submitting...' : 'Submit for Review'}</span>
                                     </button>
                                 )}
 
@@ -307,16 +324,18 @@ export function CoordinatorReportList({ onSwitchToFieldWorkerAction }: Coordinat
                                         <button
                                             onClick={() => handleStatusChange(report.id, 'ASSIGNED')}
                                             disabled={processingId === report.id}
-                                            className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium disabled:opacity-50 transition-colors shadow-xs"
+                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium disabled:opacity-50 transition-colors shadow-xs"
                                         >
-                                            Assign
+                                            {processingId === report.id && <RefreshCw className="w-3 h-3 animate-spin" />}
+                                            <span>{processingId === report.id ? 'Assigning...' : 'Assign'}</span>
                                         </button>
                                         <button
                                             onClick={() => handleStatusChange(report.id, 'REJECTED')}
                                             disabled={processingId === report.id}
-                                            className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-medium disabled:opacity-50 transition-colors shadow-xs"
+                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-medium disabled:opacity-50 transition-colors shadow-xs"
                                         >
-                                            Reject
+                                            {processingId === report.id && <RefreshCw className="w-3 h-3 animate-spin" />}
+                                            <span>{processingId === report.id ? 'Rejecting...' : 'Reject'}</span>
                                         </button>
                                     </>
                                 )}
@@ -325,9 +344,10 @@ export function CoordinatorReportList({ onSwitchToFieldWorkerAction }: Coordinat
                                     <button
                                         onClick={() => handleStatusChange(report.id, 'IN_PROGRESS')}
                                         disabled={processingId === report.id}
-                                        className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-medium disabled:opacity-50 transition-colors shadow-xs"
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-medium disabled:opacity-50 transition-colors shadow-xs"
                                     >
-                                        Start Work
+                                        {processingId === report.id && <RefreshCw className="w-3 h-3 animate-spin" />}
+                                        <span>{processingId === report.id ? 'Starting...' : 'Start Work'}</span>
                                     </button>
                                 )}
 
@@ -335,21 +355,12 @@ export function CoordinatorReportList({ onSwitchToFieldWorkerAction }: Coordinat
                                     <button
                                         onClick={() => handleStatusChange(report.id, 'RESOLVED')}
                                         disabled={processingId === report.id}
-                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-medium disabled:opacity-50 transition-colors shadow-xs"
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-medium disabled:opacity-50 transition-colors shadow-xs"
                                     >
-                                        Resolve
+                                        {processingId === report.id && <RefreshCw className="w-3 h-3 animate-spin" />}
+                                        <span>{processingId === report.id ? 'Resolving...' : 'Resolve'}</span>
                                     </button>
                                 )}
-
-                                {/* Test Invalid Transition */}
-                                <button
-                                    onClick={() => handleStatusChange(report.id, 'ASSIGNED')}
-                                    disabled={processingId === report.id}
-                                    className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-[10px] font-medium transition-colors"
-                                    title="Tests invalid backend state transition"
-                                >
-                                    Test Invalid (→ Assigned)
-                                </button>
                             </div>
                         </div>
                     ))}
