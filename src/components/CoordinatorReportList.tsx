@@ -239,7 +239,7 @@ export function CoordinatorReportList({ onSwitchToFieldWorkerAction }: Coordinat
                 </div>
                 <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
                     <button
-                        onClick={fetchServerReports}
+                        onClick={() => fetchServerReports()}
                         className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors"
                     >
                         <RefreshCw className="w-3.5 h-3.5" />

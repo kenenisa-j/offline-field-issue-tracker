@@ -311,6 +311,30 @@ Install dependencies:
 ```bash
 npm install
 
+## 🧪 Automated Testing
+
+### Unit Tests (Vitest)
+
+Run all unit tests:
+
+```bash
+npm test
+```
+
+The automated test suite contains 20 tests across 11 test files covering workflow state transitions, input validation, offline persistence, refresh persistence, synchronization success and failure, synchronization retries, duplicate prevention, report history, and pulling server updates.
+
+## 🔮 Future Improvements
+
+If this were developed beyond the exercise scope, possible improvements would include:
+
+- Background synchronization using Service Workers and the Background Sync API.
+- Authentication and real role-based authorization.
+- Offline photo and file attachments.
+- More advanced multi-device conflict resolution.
+- Controlled reopening of resolved or rejected reports.
+- Push notifications for coordinators and field workers.
+- A dedicated mobile application for Android and iOS.
+- More comprehensive integration and end-to-end testing.
 ## 🤖 AI & Development Tool Disclosure
 
 AI was used as a supporting development tool during this project.
@@ -334,6 +358,13 @@ The following areas were primarily designed and decided by me:
 AI-generated suggestions and code were reviewed, adapted, and tested during development. I also wrote and modified code independently throughout the project. I remained responsible for the implementation, technical decisions, testing, and final result.
 
 AI was used as an engineering assistant rather than as a substitute for understanding or verification.
+
+
+
+
+## ⏱️ Approximate Development Time
+
+Approximately 6 hours of active development and testing.
 
 
 
