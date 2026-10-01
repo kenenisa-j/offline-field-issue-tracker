@@ -1,7 +1,7 @@
 // Field Issue Tracker - Service Worker
 // Caches app shell on first visit so the app loads fully offline thereafter
 
-const CACHE_NAME = 'field-issue-tracker-v1';
+const CACHE_NAME = 'field-issue-tracker-v2';
 
 // Essential initial assets to pre-cache
 const PRECACHE_ASSETS = [
@@ -9,6 +9,13 @@ const PRECACHE_ASSETS = [
     '/manifest.json',
     '/icon.svg',
 ];
+
+// ─── Listen for skipWaiting from client ───────────────────────────────────────
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+});
 
 // ─── Install: pre-cache the core shell ────────────────────────────────────────
 self.addEventListener('install', (event) => {

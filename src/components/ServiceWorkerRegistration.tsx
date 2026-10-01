@@ -8,14 +8,14 @@ export function ServiceWorkerRegistration() {
             return;
         }
 
-        // Register service worker after window load to prevent delaying initial rendering
+        // Register service worker after window load
         const registerSW = () => {
             navigator.serviceWorker
                 .register('/sw.js', { scope: '/' })
                 .then((registration) => {
-                    console.log('[PWA] Service Worker registered with scope:', registration.scope);
+                    // Check for updates on every visit
+                    registration.update().catch(() => {});
 
-                    // Check for updates periodically
                     registration.onupdatefound = () => {
                         const installingWorker = registration.installing;
                         if (!installingWorker) return;
@@ -23,9 +23,8 @@ export function ServiceWorkerRegistration() {
                         installingWorker.onstatechange = () => {
                             if (installingWorker.state === 'installed') {
                                 if (navigator.serviceWorker.controller) {
-                                    console.log('[PWA] New content is available; please refresh.');
-                                } else {
-                                    console.log('[PWA] Content is cached for offline use.');
+                                    // New SW installed, activate immediately
+                                    installingWorker.postMessage({ type: 'SKIP_WAITING' });
                                 }
                             }
                         };
@@ -35,6 +34,15 @@ export function ServiceWorkerRegistration() {
                     console.warn('[PWA] Service Worker registration failed:', error);
                 });
         };
+
+        // When the new service worker activates, reload once to switch to newest code
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!refreshing) {
+                refreshing = true;
+                window.location.reload();
+            }
+        });
 
         if (document.readyState === 'complete') {
             registerSW();
